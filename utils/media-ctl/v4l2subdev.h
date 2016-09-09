@@ -132,6 +132,12 @@ int v4l2_subdev_set_selection(struct media_entity *entity,
 	struct v4l2_rect *rect, unsigned int pad, unsigned int target,
 	enum v4l2_subdev_format_whence which);
 
+int v4l2_subdev_get_routing(struct media_entity *entity, unsigned int index,
+			    struct v4l2_subdev_route *route);
+
+int v4l2_subdev_set_routing(struct media_entity *entity,
+			    struct v4l2_subdev_route *route);
+
 /**
  * @brief Query the digital video capabilities of a pad.
  * @param entity - subdev-device media entity.

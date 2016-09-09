@@ -189,6 +189,57 @@ int v4l2_subdev_set_selection(struct media_entity *entity,
 	return 0;
 }
 
+int v4l2_subdev_set_routing(struct media_entity *entity,
+			    struct v4l2_subdev_route *route)
+{
+	struct v4l2_subdev_routing routing = {
+		.routes = route,
+		.num_routes = 1,
+	};
+	int ret;
+
+	ret = v4l2_subdev_open(entity);
+	if (ret < 0)
+		return ret;
+
+	ret = ioctl(entity->fd, VIDIOC_SUBDEV_S_ROUTING, &routing);
+	if (ret == -1)
+		return -errno;
+
+	return 0;
+}
+
+int v4l2_subdev_get_routing(struct media_entity *entity, unsigned int index,
+			    struct v4l2_subdev_route *route)
+{
+	struct v4l2_subdev_routing routing = { 0 };
+	int ret;
+
+	ret = v4l2_subdev_open(entity);
+	if (ret < 0)
+		return ret;
+
+	ret = ioctl(entity->fd, VIDIOC_SUBDEV_G_ROUTING, &routing);
+	if (ret == -1 && errno != ENOSPC)
+		return -errno;
+
+	if (routing.num_routes <= index)
+		return -EINVAL;
+
+	routing.routes = calloc(routing.num_routes, sizeof(*routing.routes));
+	if (!routing.routes)
+		return -ENOMEM;
+
+	ret = ioctl(entity->fd, VIDIOC_SUBDEV_G_ROUTING, &routing);
+	if (ret)
+		return ret;
+
+	*route = routing.routes[index];
+	free(routing.routes);
+
+	return 0;
+}
+
 int v4l2_subdev_get_dv_timings_caps(struct media_entity *entity,
 	struct v4l2_dv_timings_cap *caps)
 {
@@ -299,6 +350,71 @@ int v4l2_subdev_set_frame_interval(struct media_entity *entity,
 		return -errno;
 
 	*interval = ival.interval;
+	return 0;
+}
+
+static int v4l2_subdev_parse_route(struct media_device *media,
+				   struct v4l2_subdev_route *route,
+				   const char *p, char **endp)
+{
+	bool enable;
+	char *end;
+
+	memset(route, 0, sizeof(*route));
+
+	route->sink_pad = strtoul(p, &end, 10);
+	if (*end != '/') {
+		media_dbg(media, "Expected '/'\n");
+		return -EINVAL;
+	}
+
+	p = end + 1;
+	route->sink_stream = strtoul(p, &end, 10);
+
+	for (; isspace(*end); ++end);
+	if (end[0] != '-' || end[1] != '>') {
+		media_dbg(media, "Expected '->'\n");
+		return -EINVAL;
+	}
+	p = end + 2;
+
+	route->source_pad = strtoul(p, &end, 10);
+	if (*end != '/') {
+		media_dbg(media, "Expected '/'\n");
+		return -EINVAL;
+	}
+
+	p = end + 1;
+	route->source_stream = strtoul(p, &end, 10);
+
+	for (; isspace(*end); ++end);
+	if (*end != '[') {
+		media_dbg(media, "Expected '['\n");
+		return -EINVAL;
+	}
+
+	for (end++; isspace(*end); ++end);
+	switch (*end) {
+	case '0':
+	case '1':
+		enable = *end - '0';
+		break;
+	default:
+		media_dbg(media, "Expected '0' or '1'\n");
+		return -EINVAL;
+	}
+	for (end++; isspace(*end); ++end);
+	if (*end != ']') {
+		media_dbg(media, "Expected ']'\n");
+		return -EINVAL;
+	}
+	end++;
+
+	*endp = end;
+
+	if (enable)
+		route->flags |= V4L2_SUBDEV_ROUTE_FL_ACTIVE;
+
 	return 0;
 }
 
@@ -437,9 +553,10 @@ static bool strhazit(const char *str, const char **p)
 }
 
 static struct media_pad *v4l2_subdev_parse_pad_format(
-	struct media_device *media, struct v4l2_mbus_framefmt *format,
-	struct v4l2_rect *crop, struct v4l2_rect *compose,
-	struct v4l2_fract *interval, const char *p, char **endp)
+	struct media_device *media, struct v4l2_subdev_route *route,
+	struct v4l2_mbus_framefmt *format, struct v4l2_rect *crop,
+	struct v4l2_rect *compose, struct v4l2_fract *interval, const char *p,
+	char **endp)
 {
 	struct media_pad *pad;
 	bool first;
@@ -463,6 +580,17 @@ static struct media_pad *v4l2_subdev_parse_pad_format(
 
 	for (first = true; ; first = false) {
 		for (; isspace(*p); p++);
+
+		if (strhazit("route:", &p)) {
+			ret = v4l2_subdev_parse_route(media, route, p, &end);
+			if (ret < 0) {
+				*endp = end;
+				return NULL;
+			}
+
+			p = end;
+			continue;
+		}
 
 		/*
 		 * Backward compatibility: if the first property starts with an
@@ -555,6 +683,21 @@ static struct media_pad *v4l2_subdev_parse_pad_format(
 
 	*endp = (char *)p + 1;
 	return pad;
+}
+
+static int set_route(struct media_entity *entity,
+		     struct v4l2_subdev_route *route)
+{
+	if (route->sink_pad == route->source_pad)
+		return 0;
+
+	media_dbg(entity->media,
+		  "Setting up route %u/%u -> %u/%u, flags 0x%8.8x, entity %s\n",
+		  route->sink_pad, route->sink_stream,
+		  route->source_pad, route->source_stream,
+		  route->flags, entity->info.name);
+
+	return v4l2_subdev_set_routing(entity, route);
 }
 
 static int set_format(struct media_pad *pad,
@@ -653,17 +796,22 @@ static int v4l2_subdev_parse_setup_format(struct media_device *media,
 	struct v4l2_rect crop = { -1, -1, -1, -1 };
 	struct v4l2_rect compose = crop;
 	struct v4l2_fract interval = { 0, 0 };
+	struct v4l2_subdev_route route = { 0 };
 	unsigned int i;
 	char *end;
 	int ret;
 
-	pad = v4l2_subdev_parse_pad_format(media, &format, &crop, &compose,
-					   &interval, p, &end);
+	pad = v4l2_subdev_parse_pad_format(media, &route, &format, &crop,
+					   &compose, &interval, p, &end);
 	if (pad == NULL) {
 		media_print_streampos(media, p, end);
 		media_dbg(media, "Unable to parse format\n");
 		return -EINVAL;
 	}
+
+	ret = set_route(pad->entity, &route);
+	if (ret < 0)
+		return ret;
 
 	if (pad->flags & MEDIA_PAD_FL_SINK) {
 		ret = set_format(pad, &format);
@@ -688,7 +836,6 @@ static int v4l2_subdev_parse_setup_format(struct media_device *media,
 	ret = set_frame_interval(pad->entity, &interval);
 	if (ret < 0)
 		return ret;
-
 
 	/* If the pad is an output pad, automatically set the same format on
 	 * the remote subdev input pads, if any.
