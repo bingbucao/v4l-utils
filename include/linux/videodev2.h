@@ -659,6 +659,14 @@ struct v4l2_pix_format {
 #define V4L2_PIX_FMT_Z16      v4l2_fourcc('Z', '1', '6', ' ') /* Depth data 16-bit */
 #define V4L2_PIX_FMT_MT21C    v4l2_fourcc('M', 'T', '2', '1') /* Mediatek compressed block mode  */
 
+#define V4L2_PIX_FMT_SMIAPP_EMBEDDED_8 v4l2_fourcc('S', 'M', 'M', '8') /* 8-bit SMIA++ embedded data */
+#define V4L2_PIX_FMT_SMIAPP_EMBEDDED_10 v4l2_fourcc('S', 'M', 'M', 'A') /* 10-bit SMIA++ embedded data */
+#define V4L2_PIX_FMT_SMIAPP_EMBEDDED_10P v4l2_fourcc('S', 'M', 'P', 'A') /* Packed 10-bit SMIA++ embedded data */
+#define V4L2_PIX_FMT_SMIAPP_EMBEDDED_12 v4l2_fourcc('S', 'M', 'M', 'C') /* 12-bit SMIA++ embedded data */
+#define V4L2_PIX_FMT_SMIAPP_EMBEDDED_12P v4l2_fourcc('S', 'M', 'P', 'C') /* Packed 12-bit SMIA++ embedded data */
+#define V4L2_PIX_FMT_SMIAPP_EMBEDDED_14 v4l2_fourcc('S', 'M', 'M', 'E') /* 14-bit SMIA++ embedded data */
+#define V4L2_PIX_FMT_SMIAPP_EMBEDDED_14P v4l2_fourcc('S', 'M', 'P', 'E') /* Packed 14-bit SMIA++ embedded data */
+
 /* SDR formats - used only for Software Defined Radio devices */
 #define V4L2_SDR_FMT_CU8          v4l2_fourcc('C', 'U', '0', '8') /* IQ u8 */
 #define V4L2_SDR_FMT_CU16LE       v4l2_fourcc('C', 'U', '1', '6') /* IQ u16le */
