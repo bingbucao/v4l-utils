@@ -75,6 +75,31 @@ static void print_flags(const struct flag_name *flag_names, unsigned int num_ent
 	}
 }
 
+static void v4l2_subdev_print_routes(struct media_entity *entity)
+{
+	unsigned int i;
+
+	for (i = 0; true; i++) {
+		struct v4l2_subdev_route route;
+		int ret;
+
+		ret = v4l2_subdev_get_routing(entity, i, &route);
+		if (ret)
+			return;
+
+		if (!i)
+			printf("\troutes:\n");
+
+		printf("\t\t%u/%u -> %u/%u [%s%s]\n",
+		       route.sink_pad, route.sink_stream,
+		       route.source_pad, route.source_stream,
+		       route.flags & V4L2_SUBDEV_ROUTE_FL_ACTIVE ?
+		       "ACTIVE" : "INACTIVE",
+		       route.flags & V4L2_SUBDEV_ROUTE_FL_IMMUTABLE ?
+		       ", IMMUTABLE" : "");
+	}
+}
+
 static void v4l2_subdev_print_format(struct media_entity *entity,
 	unsigned int pad, enum v4l2_subdev_format_whence which)
 {
@@ -428,6 +453,14 @@ static void media_print_topology_dot(struct media_device *media)
 	printf("}\n");
 }
 
+static void media_print_entity_text(struct media_entity *entity)
+{
+	if (media_entity_type(entity) != MEDIA_ENT_T_V4L2_SUBDEV)
+		return;
+
+	v4l2_subdev_print_routes(entity);
+}
+
 static void media_print_pad_text(struct media_entity *entity,
 				 const struct media_pad *pad)
 {
@@ -465,6 +498,8 @@ static void media_print_topology_text_entity(struct media_device *media,
 	       info->flags);
 	if (devname)
 		printf("%*cdevice node name %s\n", padding, ' ', devname);
+
+	media_print_entity_text(entity);
 
 	for (j = 0; j < info->pads; j++) {
 		const struct media_pad *pad = media_entity_get_pad(entity, j);
