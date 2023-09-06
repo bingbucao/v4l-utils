@@ -173,4 +173,25 @@
  */
 #define MEDIA_BUS_FMT_METADATA_FIXED		0x7001
 
+/* Generic line based metadata formats for serial buses. Next is 0x8008. */
+#define MEDIA_BUS_FMT_META_8			0x8001
+#define MEDIA_BUS_FMT_META_10			0x8002
+#define MEDIA_BUS_FMT_META_12			0x8003
+#define MEDIA_BUS_FMT_META_14			0x8004
+#define MEDIA_BUS_FMT_META_16			0x8005
+#define MEDIA_BUS_FMT_META_20			0x8006
+#define MEDIA_BUS_FMT_META_24			0x8007
+
+/* Specific metadata formats. Next is 0x9008. */
+#define MEDIA_BUS_FMT_CCS_EMBEDDED_8		0x9001
+#define MEDIA_BUS_FMT_CCS_EMBEDDED_10		0x9002
+#define MEDIA_BUS_FMT_CCS_EMBEDDED_12		0x9003
+#define MEDIA_BUS_FMT_CCS_EMBEDDED_14		0x9004
+#define MEDIA_BUS_FMT_CCS_EMBEDDED_16		0x9005
+#define MEDIA_BUS_FMT_CCS_EMBEDDED_20		0x9006
+#define MEDIA_BUS_FMT_CCS_EMBEDDED_24		0x9007
+
+/* Device specific metadata formats. Next is 0xa002. */
+#define MEDIA_BUS_FMT_OV2740_EMBEDDED		0xa001
+
 #endif /* __LINUX_MEDIA_BUS_FORMAT_H */
